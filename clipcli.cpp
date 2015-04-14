@@ -125,6 +125,21 @@ PolyFillType fill_type( char *f ) {
 
 }
 
+// If we get into an edge case of no points, just return 1.
+// If the cleaned polygon has a different amount of points
+//   than the original, than return (we assume we've been
+//   given a cleaned polygon).
+// After we clean and simplify the polygon, walk the
+//   resulting simplified polygon.  If there is a point
+//   that doesn't match the original, return 1.
+// Cleaning will remove co-linear points. Assuming co-linear
+//   points have been removed, the only way that extra points
+//   could be added if there was a self intersection.
+//   If we cind an extra point, we know the polygon
+//   self intersects.
+//
+// If there aren't any self intersections, return 0.
+//
 int self_intersect_test( Path &poly ) {
   Paths opolys;
   int beg_ind, i, j, k, n;
