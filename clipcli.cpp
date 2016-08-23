@@ -19,17 +19,23 @@ char gVersion[]="0.0.1";
 char *g_function=NULL;
 
 long long int gMulFactor=1;
+double gOffsetMiterLimit = 3.0;
+double gOffsetRadius = 0.0;
+double gEps = 0.000001;
 
 
 void show_help(void) {
   printf("usage:\n\n");
-  printf("clip [-t clip-type] [-S subj-fill] [-C clip-fill] [-v] [-V] [-s subj] [-s subj] ... [-c clip] [-c clip] ...\n\n");
+  printf("clipcli [-t clip-type] [-S subj-fill] [-C clip-fill] [-v] [-V] [-s subj] [-s subj] ... [-c clip] [-c clip] ...\n\n");
   printf("  [-t clip-type]      Clipping operation.  One of (Intersection, Union, Difference, Xor).  Union default.\n");
   printf("  [-S subj-fill]      Subject fill type.  One of (EvenOdd, NonZero, Positive, Negative).  NonZero default.\n");
   printf("  [-C clip-fill]      Clip fill type.  One of (EvenOdd, NonZero, Positive, Negative).  NonZero default.\n");
   printf("  [-s subj]           File containg subject polygon.\n");
   printf("  [-c clip]           File containg clip polygon.\n");
   printf("  [-x mul]            Apply multiplication factor to input polygons.\n");
+  printf("  [-R radius]         Polygon offset radius.\n");
+  printf("  [-M miter_limit]    Miter limit (default %f).\n", gOffsetMiterLimit);
+  printf("  [-E epsilon]        Epsilon (default %f).\n", gEps);
   printf("  [-v]                Verbose.\n");
   printf("  [-V]                Show version.\n");
   printf("\n");
@@ -178,6 +184,7 @@ int main(int argc, char **argv) {
   int i, j, k;
   char ch;
   bool res;
+  bool poly_offset_flag = false;
 
   char ct[][16] = { "Intersection", "Union", "Difference", "Xor" };
   char pt[][16] = { "EvenOdd", "NonZero", "Positive", "Negative" };
@@ -191,7 +198,7 @@ int main(int argc, char **argv) {
   vector<char *> subj_fn;
   vector<char *> clip_fn;
 
-  while ((ch = getopt(argc, argv, "f:s:c:t:S:C:x:vV")) != -1) {
+  while ((ch = getopt(argc, argv, "f:s:c:t:S:C:x:vVR:M:E:")) != -1) {
     switch (ch) {
       case 'f':
         g_function = strdup(optarg);
@@ -208,8 +215,20 @@ int main(int argc, char **argv) {
       case 'S':
         subj_type = fill_type( optarg );
         break;
+
       case 'C':
         clip_type = fill_type( optarg );
+        break;
+      case 'M':
+        gOffsetMiterLimit = atof(optarg);
+        break;
+      case 'E':
+        gEps = atof(optarg);
+        break;
+
+      case 'R':
+        gOffsetRadius = atof(optarg);
+        poly_offset_flag = true;
         break;
       case 'x':
         gMulFactor = atoll( optarg );
@@ -272,8 +291,23 @@ int main(int argc, char **argv) {
   clip.AddPaths( clip_polys, ptClip, true );
 
   res = clip.Execute( clip_op_type, soln, subj_type, clip_type );
-
   if (!res) { fprintf(stderr, "ERROR\n"); exit(1); }
+
+  printf("### %i %f\n", poly_offset_flag, gOffsetRadius);
+
+  if (poly_offset_flag) {
+    if (gOffsetRadius > gEps) {
+
+
+
+      Paths offset_soln;
+      ClipperOffset co;
+      co.MiterLimit = gOffsetMiterLimit;
+      co.AddPaths(soln, jtMiter, etClosedPolygon);
+      co.Execute(offset_soln, gMulFactor * gOffsetRadius );
+      soln = offset_soln;
+    }
+  }
 
   printf("# (%i)\n", (int)soln.size());
   for (i=0; i<soln.size(); i++) {
