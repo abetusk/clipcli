@@ -22,6 +22,7 @@ long long int gMulFactor=1;
 double gOffsetMiterLimit = 3.0;
 double gOffsetRadius = 0.0;
 double gEps = 0.000001;
+int gForceOrientation = 0;
 
 
 void show_help(void) {
@@ -36,6 +37,7 @@ void show_help(void) {
   printf("  [-R radius]         Polygon offset radius.\n");
   printf("  [-M miter_limit]    Miter limit (default %f).\n", gOffsetMiterLimit);
   printf("  [-E epsilon]        Epsilon (default %f).\n", gEps);
+  printf("  [-O orientation]    force orientation of all polygons (>0 cw, <0 ccw, 0 (default) input orientation).\n");
   printf("  [-v]                Verbose.\n");
   printf("  [-V]                Show version.\n");
   printf("\n");
@@ -74,7 +76,21 @@ void load_poly( FILE *fp, Paths &p ) {
   }
 
   if (cur_clip_path.size() > 0) {
+
+    if (gForceOrientation!=0) {
+      if (gForceOrientation>0) {
+        if (!ClipperLib::Orientation(cur_clip_path)) {
+          ClipperLib::ReversePath(cur_clip_path);
+        }
+      } else {
+        if (ClipperLib::Orientation(cur_clip_path)) {
+          ClipperLib::ReversePath(cur_clip_path);
+        }
+      }
+    }
+
     p.push_back(cur_clip_path);
+
   }
 
 }
@@ -198,7 +214,7 @@ int main(int argc, char **argv) {
   vector<char *> subj_fn;
   vector<char *> clip_fn;
 
-  while ((ch = getopt(argc, argv, "f:s:c:t:S:C:x:vVR:M:E:")) != -1) {
+  while ((ch = getopt(argc, argv, "f:s:c:t:S:C:x:vVR:M:E:O:")) != -1) {
     switch (ch) {
       case 'f':
         g_function = strdup(optarg);
@@ -233,6 +249,9 @@ int main(int argc, char **argv) {
       case 'x':
         gMulFactor = atoll( optarg );
         if (gMulFactor < 0) gMulFactor = -1*gMulFactor;
+        break;
+      case 'O':
+        gForceOrientation = atoi( optarg );
         break;
       case 'v':
         g_verbose_flag = true;
@@ -293,7 +312,7 @@ int main(int argc, char **argv) {
   res = clip.Execute( clip_op_type, soln, subj_type, clip_type );
   if (!res) { fprintf(stderr, "ERROR\n"); exit(1); }
 
-  printf("### %i %f\n", poly_offset_flag, gOffsetRadius);
+  //printf("### %i %f\n", poly_offset_flag, gOffsetRadius);
 
   if (poly_offset_flag) {
     if (gOffsetRadius > gEps) {
@@ -309,9 +328,9 @@ int main(int argc, char **argv) {
     }
   }
 
-  printf("# (%i)\n", (int)soln.size());
+  //printf("# (%i)\n", (int)soln.size());
   for (i=0; i<soln.size(); i++) {
-    printf("# %i\n", i);
+    //printf("# %i\n", i);
     for (j=0; j<soln[i].size(); j++) {
       printf("%lli %lli\n", soln[i][j].X, soln[i][j].Y);
     }
