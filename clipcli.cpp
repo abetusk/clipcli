@@ -122,15 +122,17 @@ void load_poly( FILE *fp, Paths &p ) {
 
     if (gReadFloatFlag) {
       k = sscanf(buf, "%lf%*[ \t]%lf", &X_d, &Y_d);
+      if (k!=2) { perror(""); fprintf(stderr, "invalid read on line %i, exiting\n", line_no); exit(2); }
       X = (gMulFactor)*X_d;
       Y = (gMulFactor)*Y_d;
+      cur_clip_path.push_back( ClipperLib::IntPoint(X, Y) );
     } else {
       k = sscanf(buf, "%lli%*[ \t]%lli", &X, &Y);
+      if (k!=2) { perror(""); fprintf(stderr, "invalid read on line %i, exiting\n", line_no); exit(2); }
+      cur_clip_path.push_back( ClipperLib::IntPoint(X*gMulFactor, Y*gMulFactor) );
     }
 
-    if (k!=2) { perror(""); fprintf(stderr, "invalid read on line %i, exiting\n", line_no); exit(2); }
 
-    cur_clip_path.push_back( ClipperLib::IntPoint(X*gMulFactor, Y*gMulFactor) );
   }
 
   if (cur_clip_path.size() > 0) {
