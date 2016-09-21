@@ -263,7 +263,9 @@ void walk_poly_tree(PolyNode *nod) {
   if (nod==NULL) { return; }
 
   if (gSortOrder<0) {
-    printf("# %i (IsHole: %i, IsOpen: %i)\n", (int)(nod->Contour.size()), (int)(nod->IsHole()), (int)(nod->IsOpen()) );
+    if (g_verbose_level>0) {
+      printf("# %i (IsHole: %i, IsOpen: %i)\n", (int)(nod->Contour.size()), (int)(nod->IsHole()), (int)(nod->IsOpen()) );
+    }
     for (i=0; i<(nod->Contour.size()); i++) {
       printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
     }
@@ -276,7 +278,9 @@ void walk_poly_tree(PolyNode *nod) {
   }
 
   if (gSortOrder>=0) {
-    printf("# %i (IsHole: %i, IsOpen: %i)\n", (int)(nod->Contour.size()), (int)(nod->IsHole()), (int)(nod->IsOpen()) );
+    if (g_verbose_level>0) {
+      printf("# %i (IsHole: %i, IsOpen: %i)\n", (int)(nod->Contour.size()), (int)(nod->IsHole()), (int)(nod->IsOpen()) );
+    }
     for (i=0; i<(nod->Contour.size()); i++) {
       printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
     }
