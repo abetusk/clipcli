@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "clipper.hpp"
+#include "poly2tri.h"
 
 using namespace std;
 using namespace ClipperLib;
@@ -30,6 +31,10 @@ int gReadFloatFlag = 0;
 int gSortOrder = 0;
 int gPolyTreeFlag = 0;
 
+bool gPrintReverse = false;
+bool gPrintBoundingBox = false;
+int gBoundingBoxMargin = 0;
+
 void show_help(void) {
   printf("usage:\n\n");
   printf("clipcli [-t clip-type] [-S subj-fill] [-C clip-fill] [-v] [-V] [-s subj] [-s subj] ... [-c clip] [-c clip] ...\n\n");
@@ -46,6 +51,9 @@ void show_help(void) {
   printf("  [-F]                read floating point input instead of long long integer\n");
   printf("  [-v]                Increase verbose level (can be specified multiple times).\n");
   printf("  [-P sortorder]      Specify what order to output polygons.  One of (area-inc, area-dec, cw-inc, cw-dec, pre, post, undef, infix).  Default undef/infix.\n");
+  printf("  [-B]                Print bounding box (cw)\n");
+  printf("  [-b margin]         Add margin to bounding box\n");
+  printf("  [-r]                print reverse order polygon contours\n");
   printf("  [-T]                Output in tree order\n");
   printf("  [-V]                Show version.\n");
   printf("\n");
@@ -76,6 +84,7 @@ void processSortOrder(char *so) {
 typedef struct sort_order_type {
   int orig_idx;
   double val;
+  unsigned long long int X, Y;
 } sort_order_t;
 
 int sort_order_cmp(const void *x, const void *y) {
@@ -90,6 +99,26 @@ int sort_order_cmp(const void *x, const void *y) {
   if ((a->val) == (b->val)) { return 0; }
   if ((a->val) < (b->val)) { return inc_dec; }
   return -inc_dec;
+}
+
+int sort_order_xy_cmp(const void *x, const void *y) {
+  int inc_dec = 1;
+  sort_order_t *a, *b;
+  a = (sort_order_t *)x;
+  b = (sort_order_t *)y;
+
+  if ((gSortOrder==1) || (gSortOrder==3)) { inc_dec = 1; }
+  else { inc_dec = -1; }
+
+  if (((a->X) == (b->X)) && ((a->Y) == (b->Y))) { return 0; }
+
+  if (a->X < b->X) { return inc_dec; }
+  else if (a->X > b->X) { return -inc_dec; }
+
+  if (a->Y < b->Y) { return inc_dec; }
+  else if (a->Y > b->Y) { return -inc_dec; }
+
+  return 0;
 }
 
 
@@ -256,30 +285,176 @@ int self_intersect_test( Path &poly ) {
   return 0;
 }
 
-void walk_poly_tree(PolyNode *nod) {
-  int i;
+void sort_schedule_delaunay(PolyNode *nod, sort_order_t *sort_order) {
+  unsigned long long int X, Y;
+  PolyNode *tnod;
+  int i, j, k, idx;
   PolyNodes *nodes;
+
+
+  std::vector<p2t::Point *> pnts;
+
+  nodes = &(nod->Childs);
+  if (nodes->size()==0) { return; }
+
+  for (i=0; i<nodes->size(); i++) {
+
+    tnod = nodes->at(i);
+    if (tnod->Contour.size()<1) { continue; }
+    X = tnod->Contour[0].X;
+    Y = tnod->Contour[0].Y;
+    for (idx=1; idx<tnod->Contour.size(); idx++) {
+      if (tnod->Contour[idx].X < X) {
+        X = tnod->Contour[idx].X;
+        Y = tnod->Contour[idx].Y;
+      } else if ((tnod->Contour[idx].X == X) && (tnod->Contour[idx].Y < Y)) {
+        X = tnod->Contour[idx].X;
+        Y = tnod->Contour[idx].Y;
+      }
+    }
+
+    sort_order[i].orig_idx = i;
+    sort_order[i].X = X;
+    sort_order[i].Y = Y;
+
+    printf("## %lli %lli\n", X, Y);
+
+    pnts.push_back( new p2t::Point( X, Y ) );
+
+  }
+
+  if (pnts.size() > 2) {
+
+    p2t::CDT *cdt = new p2t::CDT(pnts);
+    cdt->Triangulate();
+    std::vector< p2t::Triangle * > tris = cdt->GetTriangles();
+
+    for (i=0; i<tris.size(); i++) {
+      double x, y;
+      p2t::Triangle *tri = tris[i];
+      x = tri->GetPoint(0)->x;
+      y = tri->GetPoint(0)->y;
+
+      printf("%f %f\n", tri->GetPoint(0)->x, tri->GetPoint(0)->y);
+      printf("%f %f\n", tri->GetPoint(1)->x, tri->GetPoint(1)->y);
+      printf("%f %f\n", tri->GetPoint(2)->x, tri->GetPoint(2)->y);
+      printf("\n");
+    }
+    delete cdt;
+  }
+
+
+  for (i=0; i<pnts.size(); i++) { delete pnts[i]; }
+
+  exit(0);
+}
+
+void sort_schedule(PolyNode *nod, sort_order_t *sort_order) {
+  unsigned long long int X, Y;
+  PolyNode *tnod;
+  int i, j, k, idx;
+  PolyNodes *nodes;
+
+  nodes = &(nod->Childs);
+  if (nodes->size()==0) { return; }
+
+  for (i=0; i<nodes->size(); i++) {
+
+    tnod = nodes->at(i);
+    if (tnod->Contour.size()<1) { continue; }
+    X = tnod->Contour[0].X;
+    Y = tnod->Contour[0].Y;
+    for (idx=1; idx<tnod->Contour.size(); idx++) {
+      if (tnod->Contour[idx].X < X) {
+        X = tnod->Contour[idx].X;
+        Y = tnod->Contour[idx].Y;
+      } else if ((tnod->Contour[idx].X == X) && (tnod->Contour[idx].Y < Y)) {
+        X = tnod->Contour[idx].X;
+        Y = tnod->Contour[idx].Y;
+      }
+    }
+
+    sort_order[i].orig_idx = i;
+    sort_order[i].X = X;
+    sort_order[i].Y = Y;
+
+  }
+
+  qsort(sort_order, nodes->size(), sizeof(sort_order_t), sort_order_xy_cmp);
+
+}
+
+void walk_poly_tree(PolyNode *nod, int level) {
+  unsigned long long int X, Y;
+  PolyNode *tnod;
+  int i, j, k, idx;
+  PolyNodes *nodes;
+  sort_order_t *sort_order = NULL;
 
   if (nod==NULL) { return; }
 
   if (gSortOrder<0) {
     if (g_verbose_level>0) {
-      printf("# %i (IsHole: %i, IsOpen: %i)\n", (int)(nod->Contour.size()), (int)(nod->IsHole()), (int)(nod->IsOpen()) );
+      printf("# %i (IsHole: %i, IsOpen: %i, lvl: %i)\n", (int)(nod->Contour.size()), (int)(nod->IsHole()), (int)(nod->IsOpen()), level );
     }
-    for (i=0; i<(nod->Contour.size()); i++) {
-      printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
+
+    if (gPrintReverse) {
+      for (i=(nod->Contour.size()-1); i>=0; i--) {
+        printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
+      }
+    } else {
+      for (i=0; i<(nod->Contour.size()); i++) {
+        printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
+      }
     }
     printf("\n");
   }
 
   nodes = &(nod->Childs);
-  for (i=0; i<nodes->size(); i++) {
-    walk_poly_tree(nodes->at(i));
+  if (nodes->size()>0) {
+
+    sort_order = (sort_order_t *)malloc(sizeof(sort_order_t)*nodes->size());
+    sort_schedule(nod, sort_order);
+    //sort_schedule_delaunay(nod, sort_order);
+
+    /*
+    for (i=0; i<nodes->size(); i++) {
+
+      tnod = nodes->at(i);
+      if (tnod->Contour.size()<1) { continue; }
+      X = tnod->Contour[0].X;
+      Y = tnod->Contour[0].Y;
+      for (idx=1; idx<tnod->Contour.size(); idx++) {
+        if (tnod->Contour[idx].X < X) {
+          X = tnod->Contour[idx].X;
+          Y = tnod->Contour[idx].Y;
+        } else if ((tnod->Contour[idx].X == X) && (tnod->Contour[idx].Y < Y)) {
+          X = tnod->Contour[idx].X;
+          Y = tnod->Contour[idx].Y;
+        }
+      }
+
+      sort_order[i].orig_idx = i;
+      sort_order[i].X = X;
+      sort_order[i].Y = Y;
+
+    }
+
+    qsort(sort_order, nodes->size(), sizeof(sort_order_t), sort_order_xy_cmp);
+    */
+
+    for (i=0; i<nodes->size(); i++) {
+      //walk_poly_tree(nodes->at(i), level+1);
+      walk_poly_tree(nodes->at(sort_order[i].orig_idx), level+1);
+    }
+
+    free(sort_order);
+
   }
 
   if (gSortOrder>=0) {
     if (g_verbose_level>0) {
-      printf("# %i (IsHole: %i, IsOpen: %i)\n", (int)(nod->Contour.size()), (int)(nod->IsHole()), (int)(nod->IsOpen()) );
+      printf("# %i (IsHole: %i, IsOpen: %i, lvl: %i)\n", (int)(nod->Contour.size()), (int)(nod->IsHole()), (int)(nod->IsOpen()), level );
     }
     for (i=0; i<(nod->Contour.size()); i++) {
       printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
@@ -292,8 +467,13 @@ void walk_poly_tree(PolyNode *nod) {
 void process_poly_tree(PolyTree &soln_tree) {
   int i;
 
+  //DEBUG
+  walk_poly_tree(&soln_tree, 0);
+  return;
+  //DEBUG
+
   for (i=0; i<soln_tree.Childs.size(); i++) {
-    walk_poly_tree(soln_tree.Childs[i]);
+    walk_poly_tree(soln_tree.Childs[i], 0);
   }
 
 }
@@ -320,7 +500,7 @@ int main(int argc, char **argv) {
   vector<char *> subj_fn;
   vector<char *> clip_fn;
 
-  while ((ch = getopt(argc, argv, "f:s:c:t:S:C:x:vVR:M:E:O:FP:T")) != -1) {
+  while ((ch = getopt(argc, argv, "f:s:c:t:S:C:x:vVR:M:E:O:FP:TrBb:")) != -1) {
     switch (ch) {
       case 'f':
         g_function = strdup(optarg);
@@ -348,6 +528,15 @@ int main(int argc, char **argv) {
         gEps = atof(optarg);
         break;
 
+      case 'B':
+        gPrintBoundingBox = true;
+        break;
+      case 'b':
+        gBoundingBoxMargin = atoi(optarg);
+        break;
+      case 'r':
+        gPrintReverse = true;
+        break;
       case 'P':
         processSortOrder(optarg);
         break;
@@ -428,11 +617,75 @@ int main(int argc, char **argv) {
   clip.AddPaths( subj_polys, ptSubject, true );
   clip.AddPaths( clip_polys, ptClip, true );
 
+  int count=0;
+  PolyNode *nod;
+
   if (gPolyTreeFlag>0) {
+    PolyTree offset_soln_tree;
+
     res = clip.Execute( clip_op_type, soln_tree, subj_type, clip_type );
     if (!res) { fprintf(stderr, "ERROR\n"); exit(1); }
 
+    if (poly_offset_flag) {
+      if (gOffsetRadius > gEps) {
+
+        ClipperOffset co;
+        Paths paths;
+
+        nod = soln_tree.GetFirst();
+
+        while (nod) {
+          paths.push_back(nod->Contour);
+          nod = nod->GetNext();
+          count++;
+        }
+
+        co.MiterLimit = gOffsetMiterLimit;
+        co.AddPaths(paths, jtMiter, etClosedPolygon);
+
+        co.Execute(offset_soln_tree, gMulFactor * gOffsetRadius );
+
+        soln_tree = offset_soln_tree;
+      }
+    }
+
+    unsigned long long int minX, maxX, minY, maxY;
+
     process_poly_tree(soln_tree);
+
+    if (gPrintBoundingBox) {
+      count=0;
+      nod = soln_tree.GetFirst();
+      while (nod) {
+        if (nod->Contour.size()==0) { continue; }
+        if (count==0) {
+          minX = nod->Contour[0].X;
+          maxX = nod->Contour[0].X;
+          minY = nod->Contour[0].Y;
+          maxY = nod->Contour[0].Y;
+        }
+        for (i=0; i<nod->Contour.size(); i++) {
+          if (minX > nod->Contour[i].X) { minX = nod->Contour[i].X; }
+          if (minY > nod->Contour[i].Y) { minY = nod->Contour[i].Y; }
+          if (maxX < nod->Contour[i].X) { maxX = nod->Contour[i].X; }
+          if (maxY < nod->Contour[i].Y) { maxY = nod->Contour[i].Y; }
+        }
+        nod = nod->GetNext();
+        count++;
+      }
+
+      unsigned long long int marg = gBoundingBoxMargin * gMulFactor;
+
+      printf("%lli %lli\n", minX - marg, minY - marg);
+      printf("%lli %lli\n", minX - marg, maxY + marg);
+      printf("%lli %lli\n", maxX + marg, maxY + marg);
+      printf("%lli %lli\n", maxX + marg, minY - marg);
+      printf("\n");
+
+    }
+
+
+
 
     exit(0);
   }
@@ -443,8 +696,10 @@ int main(int argc, char **argv) {
   //printf("### %i %f\n", poly_offset_flag, gOffsetRadius);
 
   if (poly_offset_flag) {
+    printf("# offsetting... ???\n");
     if (gOffsetRadius > gEps) {
 
+      printf("# offsetting...\n");
 
 
       Paths offset_soln;
