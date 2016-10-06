@@ -7,12 +7,155 @@
 #include <errno.h>
 
 #include <vector>
+#include <map>
 
 #include "clipper.hpp"
-#include "poly2tri.h"
+
+#include "vector2.h"
+#include "triangle.h"
+#include "delaunay.h"
+
 
 using namespace std;
 using namespace ClipperLib;
+
+typedef signed long long cInt;
+typedef unsigned long long cUInt;
+
+typedef Vector2<double> Vec2f;
+
+cInt dtocint( double d ) {
+  if (d < 0.0) return (unsigned long long)(d-0.5);
+  return (signed long long)(d+0.5);
+}
+
+
+class iPnt {
+  public:
+  long long int X, Y;
+  iPnt() { X=0; Y=0; }
+  iPnt(long long int a, long long int b) { X = a; Y = b; }
+} ;
+
+struct iPnt_cmp {
+  bool operator() (const iPnt &lhs, const iPnt &rhs) const {
+    if ( lhs.X == rhs.X ) return lhs.Y < rhs.Y ;
+    return lhs.X < rhs.X;
+  }
+};
+
+class PointInfo {
+  public:
+  int pointInd, polygonInd;
+  int dir;
+  bool visited, is_outer_boundary, is_clockwise;
+} ;
+
+typedef std::map< iPnt , PointInfo, iPnt_cmp > PointInfoMap;
+typedef std::map< iPnt, std::vector< iPnt >, iPnt_cmp > PointAdjacency;
+
+
+class iEdge {
+  public:
+    iPnt v[2];
+};
+
+struct iEdge_cmp {
+  bool operator() (const iEdge &lhs, const iEdge &rhs) const {
+    if ( ( lhs.v[0].X == rhs.v[0].X ) &&
+         ( lhs.v[0].Y == rhs.v[0].Y ) ) {
+      if ( lhs.v[1].X == rhs.v[1].X ) return lhs.v[1].Y < rhs.v[1].Y;
+      return lhs.v[1].X < rhs.v[1].X;
+    }
+
+    if ( lhs.v[0].X == rhs.v[0].X ) return lhs.v[0].Y < rhs.v[0].Y ;
+    return lhs.v[0].X < rhs.v[0].X;
+  }
+};
+
+typedef std::map< iEdge, int, iEdge_cmp > EdgeMap;
+
+
+void addEdgesFromTri( PointAdjacency &edge, Triangle *tri, EdgeMap &edgeMap ){
+  iEdge uv;
+  int a,b,i, perm[][2] = { {0,1}, {1,0}, {0,2}, {2,0}, {1,2}, {2,1} };
+
+  uv.v[0].X = dtocint( tri->p1.x ); uv.v[0].Y = dtocint( tri->p1.y );
+  uv.v[1].X = dtocint( tri->p2.x ); uv.v[1].Y = dtocint( tri->p2.y );
+
+  if ( edgeMap.find( uv ) == edgeMap.end() ) {
+
+    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
+
+    edge[ uv.v[0] ].push_back( uv.v[1] );
+    edgeMap[ uv ] = 1;
+  }
+
+  uv.v[0].X = dtocint( tri->p2.x ); uv.v[0].Y = dtocint( tri->p2.y );
+  uv.v[1].X = dtocint( tri->p1.x ); uv.v[1].Y = dtocint( tri->p1.y );
+
+  if ( edgeMap.find( uv ) == edgeMap.end() ) {
+
+    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
+
+    edge[ uv.v[0] ].push_back( uv.v[1] );
+    edgeMap[ uv ] = 1;
+  }
+
+  //--
+
+  uv.v[0].X = dtocint( tri->p1.x ); uv.v[0].Y = dtocint( tri->p1.y );
+  uv.v[1].X = dtocint( tri->p3.x ); uv.v[1].Y = dtocint( tri->p3.y );
+
+  if ( edgeMap.find( uv ) == edgeMap.end() ) {
+
+    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
+
+    edge[ uv.v[0] ].push_back( uv.v[1] );
+    edgeMap[ uv ] = 1;
+  }
+
+  uv.v[0].X = dtocint( tri->p3.x ); uv.v[0].Y = dtocint( tri->p3.y );
+  uv.v[1].X = dtocint( tri->p1.x ); uv.v[1].Y = dtocint( tri->p1.y );
+
+  if ( edgeMap.find( uv ) == edgeMap.end() ) {
+
+    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
+
+    edge[ uv.v[0] ].push_back( uv.v[1] );
+    edgeMap[ uv ] = 1;
+  }
+
+  //--
+
+  uv.v[0].X = dtocint( tri->p2.x ); uv.v[0].Y = dtocint( tri->p2.y );
+  uv.v[1].X = dtocint( tri->p3.x ); uv.v[1].Y = dtocint( tri->p3.y );
+
+  if ( edgeMap.find( uv ) == edgeMap.end() ) {
+
+    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
+
+    edge[ uv.v[0] ].push_back( uv.v[1] );
+    edgeMap[ uv ] = 1;
+  }
+
+  uv.v[0].X = dtocint( tri->p3.x ); uv.v[0].Y = dtocint( tri->p3.y );
+  uv.v[1].X = dtocint( tri->p2.x ); uv.v[1].Y = dtocint( tri->p2.y );
+
+  if ( edgeMap.find( uv ) == edgeMap.end() ) {
+
+    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
+
+    edge[ uv.v[0] ].push_back( uv.v[1] );
+    edgeMap[ uv ] = 1;
+  }
+
+}
+
+
+
+
+#define SORT_DELAUNAY 16
 
 //bool g_verbose_flag=false;
 int g_verbose_level = 0;
@@ -50,7 +193,7 @@ void show_help(void) {
   printf("  [-O orientation]    force orientation of all polygons (>0 cw, <0 ccw, 0 (default) input orientation).\n");
   printf("  [-F]                read floating point input instead of long long integer\n");
   printf("  [-v]                Increase verbose level (can be specified multiple times).\n");
-  printf("  [-P sortorder]      Specify what order to output polygons.  One of (area-inc, area-dec, cw-inc, cw-dec, pre, post, undef, infix).  Default undef/infix.\n");
+  printf("  [-P sortorder]      Specify what order to output polygons.  One of (area-inc, area-dec, cw-inc, cw-dec, pre, post, undef, infix, closest).  Default undef/infix.\n");
   printf("  [-B]                Print bounding box (cw)\n");
   printf("  [-b margin]         Add margin to bounding box\n");
   printf("  [-r]                print reverse order polygon contours\n");
@@ -78,6 +221,8 @@ void processSortOrder(char *so) {
     gSortOrder = -1;
   } else if (strcmp(so, "post") == 0) {
     gSortOrder = 1;
+  } else if (strcmp(so, "closest")==0) {
+    gSortOrder = SORT_DELAUNAY;
   }
 }
 
@@ -88,6 +233,20 @@ typedef struct sort_order_type {
 } sort_order_t;
 
 int sort_order_cmp(const void *x, const void *y) {
+  int inc_dec = 1;
+  sort_order_t *a, *b;
+  a = (sort_order_t *)x;
+  b = (sort_order_t *)y;
+
+  if ((gSortOrder==1) || (gSortOrder==3)) { inc_dec = 1; }
+  else { inc_dec = -1; }
+
+  if ((a->val) == (b->val)) { return 0; }
+  if ((a->val) < (b->val)) { return inc_dec; }
+  return -inc_dec;
+}
+
+int sort_order_cmp_2(const void *x, const void *y) {
   int inc_dec = 1;
   sort_order_t *a, *b;
   a = (sort_order_t *)x;
@@ -191,6 +350,10 @@ void load_polys( vector<char *> &fns, Paths &polys) {
 
   for (i=0; i<fns.size(); i++) {
     fp = fopen(fns[i], "r");
+    if (fp==NULL) {
+      perror(fns[i]);
+      exit(-1);
+    }
     load_poly( fp, polys );
     fclose(fp);
   }
@@ -285,68 +448,198 @@ int self_intersect_test( Path &poly ) {
   return 0;
 }
 
+int walk_recur_sort_order_r(sort_order_t *sort_order, int pos, int cur_order, std::vector< std::vector<int> > &edge) {
+  int i, j, k, orig_order;
+  iPnt p, q;
+  std::vector<int> v;
+
+  if (sort_order[pos].val>=0) { return 0; }
+
+  orig_order = cur_order;
+
+  sort_order[pos].val = cur_order;
+  cur_order++;
+
+  v = edge[pos];
+  for (i=0; i<v.size(); i++) {
+    cur_order += walk_recur_sort_order_r(sort_order, v[i], cur_order, edge);
+  }
+
+  return cur_order - orig_order;
+}
+
+void walk_recur_sort_order(sort_order_t *sort_order, std::vector< std::vector<int> > &edge) {
+  int i, j, cur_order, n;
+  n = (int)(edge.size());
+  cur_order=0;
+  for (i=0; i<n; i++) {
+    if (sort_order[i].val>=0) { continue; }
+    cur_order += walk_recur_sort_order_r(sort_order, i, cur_order, edge);
+  }
+
+}
+
+
 void sort_schedule_delaunay(PolyNode *nod, sort_order_t *sort_order) {
   unsigned long long int X, Y;
   PolyNode *tnod;
-  int i, j, k, idx;
+  int i, j, k, idx, tot=0;
   PolyNodes *nodes;
 
+  double x, y;
+  int local_debug = 0;
 
-  std::vector<p2t::Point *> pnts;
+  std::vector<Vec2f> pnts;
 
   nodes = &(nod->Childs);
   if (nodes->size()==0) { return; }
 
+  if (local_debug) {
+    printf("\n### sort_schedule_delaunay (%i)\n", (int)(nodes->size()));
+  }
+
+
+
   for (i=0; i<nodes->size(); i++) {
 
+    sort_order[i].orig_idx = i;
+    sort_order[i].X = 0;
+    sort_order[i].Y = 0;
+    sort_order[i].val = -2;
+
     tnod = nodes->at(i);
-    if (tnod->Contour.size()<1) { continue; }
+    if (tnod->Contour.size()<1) {
+
+      if (local_debug) {
+        printf("### skipping i %i (contour %i)\n", i, (int)(tnod->Contour.size()));
+      }
+
+      continue;
+    }
     X = tnod->Contour[0].X;
     Y = tnod->Contour[0].Y;
-    for (idx=1; idx<tnod->Contour.size(); idx++) {
-      if (tnod->Contour[idx].X < X) {
-        X = tnod->Contour[idx].X;
-        Y = tnod->Contour[idx].Y;
-      } else if ((tnod->Contour[idx].X == X) && (tnod->Contour[idx].Y < Y)) {
-        X = tnod->Contour[idx].X;
-        Y = tnod->Contour[idx].Y;
-      }
-    }
 
-    sort_order[i].orig_idx = i;
     sort_order[i].X = X;
     sort_order[i].Y = Y;
+    sort_order[i].val = -1;
 
-    printf("## %lli %lli\n", X, Y);
-
-    pnts.push_back( new p2t::Point( X, Y ) );
-
-  }
-
-  if (pnts.size() > 2) {
-
-    p2t::CDT *cdt = new p2t::CDT(pnts);
-    cdt->Triangulate();
-    std::vector< p2t::Triangle * > tris = cdt->GetTriangles();
-
-    for (i=0; i<tris.size(); i++) {
-      double x, y;
-      p2t::Triangle *tri = tris[i];
-      x = tri->GetPoint(0)->x;
-      y = tri->GetPoint(0)->y;
-
-      printf("%f %f\n", tri->GetPoint(0)->x, tri->GetPoint(0)->y);
-      printf("%f %f\n", tri->GetPoint(1)->x, tri->GetPoint(1)->y);
-      printf("%f %f\n", tri->GetPoint(2)->x, tri->GetPoint(2)->y);
-      printf("\n");
+    if (local_debug) {
+      printf("## %lli %lli (%f)\n", X, Y, sort_order[i].val);
     }
-    delete cdt;
+
+    pnts.push_back( Vec2f((double)X, (double)Y) );
+
+  }
+
+  if (nodes->size() < 3) { return; }
+
+
+  if (local_debug) {
+    printf("\n\n### pnts %i\n", (int)(pnts.size()));
+    for (i=0; i<pnts.size(); i++) {
+      printf("#### %f %f\n", pnts[i].x, pnts[i].y);
+    }
+    printf("\n\n");
+  }
+
+  Delaunay triangulation;
+  std::vector<Triangle> tris = triangulation.triangulate(pnts);
+  std::vector<Edge> edges = triangulation.getEdges();
+
+  if (local_debug) {
+    for (i=0; i<edges.size(); i++) {
+      printf("##_ %f %f\n##_ %f %f\n\n",
+          edges[i].p1.x, edges[i].p1.y,
+          edges[i].p2.x, edges[i].p2.y);
+    }
+  }
+
+  PointAdjacency pointAdj;
+  EdgeMap edgeMap;
+
+  for (i=0; i<tris.size(); i++) {
+    addEdgesFromTri(pointAdj, &(tris[i]), edgeMap);
+  }
+
+  std::vector< std::vector<int> > adj;
+  std::vector< int > vv;
+  std::vector< iPnt > pvec;
+  PointInfo pinfo;
+  PointInfoMap pim;
+  iPnt p;
+
+  for (i=0; i<nodes->size(); i++) {
+    if (sort_order[i].val == -2) { continue; }
+
+    p.X = sort_order[i].X;
+    p.Y = sort_order[i].Y;
+
+    if (pointAdj.find(p) == pointAdj.end()) {
+      printf("!! ERROR, COULD NOT FIND %lli %lli INT pointAdj\n", p.X, p.Y);
+      continue;
+    }
+
+
+    pinfo.pointInd = i;
+    pim[p] = pinfo;
+
+    if (local_debug) {
+      printf("### adding %lli %lli idx %i\n", p.X, p.Y, pinfo.pointInd);
+    }
+
   }
 
 
-  for (i=0; i<pnts.size(); i++) { delete pnts[i]; }
+  for (i=0; i<nodes->size(); i++) {
+    if (sort_order[i].val == -2) { continue; }
 
-  exit(0);
+    p.X = sort_order[i].X;
+    p.Y = sort_order[i].Y;
+
+    if (pointAdj.find(p) == pointAdj.end()) {
+      printf("ERROR, COULD NOT FIND %lli %lli INT pointAdj\n", p.X, p.Y);
+      continue;
+    }
+
+    vv.clear();
+    pvec = pointAdj[p];
+    for (j=0; j<pvec.size(); j++) {
+      p.X = pvec[j].X;
+      p.Y = pvec[j].Y;
+      pinfo = pim[p];
+
+      vv.push_back(pinfo.pointInd);
+    }
+
+    adj.push_back(vv);
+
+  }
+
+  if (local_debug) {
+    for (i=0; i<adj.size(); i++) {
+      vv = adj[i];
+      for (j=0; j<vv.size(); j++) {
+        printf("#_ %lli %lli\n#_ %lli %lli\n#_\n\n",
+            sort_order[i].X, sort_order[i].Y,
+            sort_order[vv[j]].X, sort_order[vv[j]].Y);
+
+      }
+    }
+  }
+
+  walk_recur_sort_order(sort_order, adj);
+
+  int n = nodes->size();
+  if (local_debug) {
+    printf("\n\n");
+    for (i=0; i<n; i++) {
+      printf("#- [%i] %lli %lli order: %f\n", i, sort_order[i].X, sort_order[i].Y, sort_order[i].val);
+    }
+    printf("\n\n");
+  }
+
+  qsort(sort_order, n, sizeof(sort_order_t), sort_order_cmp);
+
 }
 
 void sort_schedule(PolyNode *nod, sort_order_t *sort_order) {
@@ -408,43 +701,21 @@ void walk_poly_tree(PolyNode *nod, int level) {
       }
     }
     printf("\n");
+
   }
 
   nodes = &(nod->Childs);
   if (nodes->size()>0) {
 
     sort_order = (sort_order_t *)malloc(sizeof(sort_order_t)*nodes->size());
-    sort_schedule(nod, sort_order);
-    //sort_schedule_delaunay(nod, sort_order);
 
-    /*
-    for (i=0; i<nodes->size(); i++) {
-
-      tnod = nodes->at(i);
-      if (tnod->Contour.size()<1) { continue; }
-      X = tnod->Contour[0].X;
-      Y = tnod->Contour[0].Y;
-      for (idx=1; idx<tnod->Contour.size(); idx++) {
-        if (tnod->Contour[idx].X < X) {
-          X = tnod->Contour[idx].X;
-          Y = tnod->Contour[idx].Y;
-        } else if ((tnod->Contour[idx].X == X) && (tnod->Contour[idx].Y < Y)) {
-          X = tnod->Contour[idx].X;
-          Y = tnod->Contour[idx].Y;
-        }
-      }
-
-      sort_order[i].orig_idx = i;
-      sort_order[i].X = X;
-      sort_order[i].Y = Y;
-
+    if (gSortOrder == SORT_DELAUNAY) {
+      sort_schedule_delaunay(nod, sort_order);
+    } else {
+      sort_schedule(nod, sort_order);
     }
 
-    qsort(sort_order, nodes->size(), sizeof(sort_order_t), sort_order_xy_cmp);
-    */
-
     for (i=0; i<nodes->size(); i++) {
-      //walk_poly_tree(nodes->at(i), level+1);
       walk_poly_tree(nodes->at(sort_order[i].orig_idx), level+1);
     }
 
@@ -467,14 +738,9 @@ void walk_poly_tree(PolyNode *nod, int level) {
 void process_poly_tree(PolyTree &soln_tree) {
   int i;
 
-  //DEBUG
   walk_poly_tree(&soln_tree, 0);
-  return;
-  //DEBUG
 
-  for (i=0; i<soln_tree.Childs.size(); i++) {
-    walk_poly_tree(soln_tree.Childs[i], 0);
-  }
+  //for (i=0; i<soln_tree.Childs.size(); i++) { walk_poly_tree(soln_tree.Childs[i], 0); }
 
 }
 
