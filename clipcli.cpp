@@ -193,7 +193,7 @@ void show_help(void) {
   printf("  [-O orientation]    force orientation of all polygons (>0 cw, <0 ccw, 0 (default) input orientation).\n");
   printf("  [-F]                read floating point input instead of long long integer\n");
   printf("  [-v]                Increase verbose level (can be specified multiple times).\n");
-  printf("  [-P sortorder]      Specify what order to output polygons.  One of (area-inc, area-dec, cw-inc, cw-dec, pre, post, undef, infix, closest).  Default undef/infix.\n");
+  printf("  [-P sortorder]      Polygon output order.  One of (area-inc|area-dec|cw-inc|cw-dec|pre|post|undef|infix|closest).\n");
   printf("  [-B]                Print bounding box (cw)\n");
   printf("  [-b margin]         Add margin to bounding box\n");
   printf("  [-r]                print reverse order polygon contours\n");
