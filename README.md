@@ -19,7 +19,10 @@ clipcli [-t clip-type] [-S subj-fill] [-C clip-fill] [-v] [-V] [-s subj] [-s sub
   [-O orientation]    force orientation of all polygons (>0 cw, <0 ccw, 0 (default) input orientation).
   [-F]                read floating point input instead of long long integer
   [-v]                Increase verbose level (can be specified multiple times).
-  [-P sortorder]      Specify what order to output polygons.  One of (area-inc, area-dec, cw-inc, cw-dec, pre, post, undef, infix).  Default undef/infix.
+  [-P sortorder]      Polygon output order.  One of (area-inc|area-dec|cw-inc|cw-dec|pre|post|undef|infix|closest).
+  [-B]                Print bounding box (cw)
+  [-b margin]         Add margin to bounding box
+  [-r]                print reverse order polygon contours
   [-T]                Output in tree order
   [-V]                Show version.
 ```
