@@ -15,7 +15,6 @@
 #include "triangle.h"
 #include "delaunay.h"
 
-
 using namespace std;
 using namespace ClipperLib;
 
@@ -159,7 +158,7 @@ void addEdgesFromTri( PointAdjacency &edge, Triangle *tri, EdgeMap &edgeMap ){
 
 //bool g_verbose_flag=false;
 int g_verbose_level = 0;
-char gVersion[]="0.0.1";
+char gVersion[]="0.1.0";
 
 char *g_function=NULL;
 
@@ -178,16 +177,22 @@ bool gPrintReverse = false;
 bool gPrintBoundingBox = false;
 int gBoundingBoxMargin = 0;
 
+void show_version(void) {
+  printf("%s\n", gVersion);
+}
+
+
 void show_help(void) {
+  printf("version: "); show_version(); printf("\n");
   printf("usage:\n\n");
-  printf("clipcli [-t clip-type] [-S subj-fill] [-C clip-fill] [-v] [-V] [-s subj] [-s subj] ... [-c clip] [-c clip] ...\n\n");
+  printf("    clipcli [-t clip-type] [-S subj-fill] [-C clip-fill] [-v] [-V] [-s subj] [-s subj] ... [-c clip] [-c clip] ...\n\n");
   printf("  [-t clip-type]      Clipping operation.  One of (Intersection, Union, Difference, Xor).  Union default.\n");
   printf("  [-S subj-fill]      Subject fill type.  One of (EvenOdd, NonZero, Positive, Negative).  NonZero default.\n");
   printf("  [-C clip-fill]      Clip fill type.  One of (EvenOdd, NonZero, Positive, Negative).  NonZero default.\n");
   printf("  [-s subj]           File containg subject polygon.\n");
   printf("  [-c clip]           File containg clip polygon.\n");
   printf("  [-x mul]            Apply multiplication factor to input polygons.\n");
-  printf("  [-R radius]         Polygon offset radius.\n");
+  printf("  [-R radius]         Polygon offset radius (negative for infill).\n");
   printf("  [-M miter_limit]    Miter limit (default %f).\n", gOffsetMiterLimit);
   printf("  [-E epsilon]        Epsilon (default %f).\n", gEps);
   printf("  [-O orientation]    force orientation of all polygons (>0 cw, <0 ccw, 0 (default) input orientation).\n");
@@ -281,8 +286,34 @@ int sort_order_xy_cmp(const void *x, const void *y) {
 }
 
 
-void show_version(void) {
-  printf("%s\n", gVersion);
+void load_poly_set_orientation(Path &cur_clip_path) {
+
+  if (cur_clip_path.size() > 0) {
+
+    //printf("##?? gForceOrientation %i\n", gForceOrientation);
+
+    if (gForceOrientation!=0) {
+
+      if (gForceOrientation>0) {
+        if (!ClipperLib::Orientation(cur_clip_path)) {
+
+          //printf("##>> gForceOrientation > 0 (%i), reversing...\n", gForceOrientation);
+
+          ClipperLib::ReversePath(cur_clip_path);
+        }
+      } else {
+        if (ClipperLib::Orientation(cur_clip_path)) {
+
+          //printf("##<< gForceOrientation < 0 (%i), reversing...\n", gForceOrientation);
+
+          ClipperLib::ReversePath(cur_clip_path);
+        }
+      }
+
+    }
+
+  }
+
 }
 
 void load_poly( FILE *fp, Paths &p ) {
@@ -302,6 +333,7 @@ void load_poly( FILE *fp, Paths &p ) {
     if (buf[0] == '#') continue;
     if (buf[0] == '\n') {
       if (cur_clip_path.size() == 0) { continue; }
+      load_poly_set_orientation(cur_clip_path);
       p.push_back( cur_clip_path );
       cur_clip_path.clear();
       continue;
@@ -324,22 +356,41 @@ void load_poly( FILE *fp, Paths &p ) {
   }
 
   if (cur_clip_path.size() > 0) {
+    load_poly_set_orientation(cur_clip_path);
+    p.push_back( cur_clip_path );
+  }
+
+  /*
+  printf("##?? ... gForceOrientation %i\n", gForceOrientation);
+
+  if (cur_clip_path.size() > 0) {
+
+    printf("##?? gForceOrientation %i\n", gForceOrientation);
 
     if (gForceOrientation!=0) {
+
       if (gForceOrientation>0) {
         if (!ClipperLib::Orientation(cur_clip_path)) {
+
+          printf("##>> gForceOrientation > 0 (%i), reversing...\n", gForceOrientation);
+
           ClipperLib::ReversePath(cur_clip_path);
         }
       } else {
         if (ClipperLib::Orientation(cur_clip_path)) {
+
+          printf("##<< gForceOrientation < 0 (%i), reversing...\n", gForceOrientation);
+
           ClipperLib::ReversePath(cur_clip_path);
         }
       }
+
     }
 
     p.push_back(cur_clip_path);
 
   }
+  */
 
 }
 
@@ -893,7 +944,7 @@ int main(int argc, char **argv) {
     if (!res) { fprintf(stderr, "ERROR\n"); exit(1); }
 
     if (poly_offset_flag) {
-      if (gOffsetRadius > gEps) {
+      if (fabs(gOffsetRadius) > gEps) {
 
         ClipperOffset co;
         Paths paths;
@@ -962,12 +1013,8 @@ int main(int argc, char **argv) {
   //printf("### %i %f\n", poly_offset_flag, gOffsetRadius);
 
   if (poly_offset_flag) {
-    printf("# offsetting... ???\n");
-    if (gOffsetRadius > gEps) {
 
-      printf("# offsetting...\n");
-
-
+    if (fabs(gOffsetRadius) > gEps) {
       Paths offset_soln;
       ClipperOffset co;
       co.MiterLimit = gOffsetMiterLimit;
