@@ -1,3 +1,22 @@
+/*
+ *  clipcli is a polygon clipping tool that acts as a front end to Angus Johnson's clipperlib library
+ *  Copyright (C) 2019 abetusk
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Affero General Public License as
+ *  published by the Free Software Foundation, either version 3 of the
+ *  License, or (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Affero General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Affero General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -14,6 +33,28 @@
 #include "vector2.h"
 #include "triangle.h"
 #include "delaunay.h"
+
+char gVersion[]="0.1.1";
+
+int g_verbose_level = 0;
+char *g_function=NULL;
+
+long long int gMulFactor=1;
+double gOffsetMiterLimit = 3.0;
+double gOffsetRadius = 0.0;
+double gEps = 0.000001;
+int gForceOrientation = 0;
+
+int gReadFloatFlag = 0;
+
+int gSortOrder = 0;
+int gPolyTreeFlag = 0;
+
+bool gPrintReverse = false;
+bool gPrintBoundingBox = false;
+int gBoundingBoxMargin = 0;
+
+
 
 using namespace std;
 using namespace ClipperLib;
@@ -155,27 +196,6 @@ void addEdgesFromTri( PointAdjacency &edge, Triangle *tri, EdgeMap &edgeMap ){
 
 
 #define SORT_DELAUNAY 16
-
-//bool g_verbose_flag=false;
-int g_verbose_level = 0;
-char gVersion[]="0.1.0";
-
-char *g_function=NULL;
-
-long long int gMulFactor=1;
-double gOffsetMiterLimit = 3.0;
-double gOffsetRadius = 0.0;
-double gEps = 0.000001;
-int gForceOrientation = 0;
-
-int gReadFloatFlag = 0;
-
-int gSortOrder = 0;
-int gPolyTreeFlag = 0;
-
-bool gPrintReverse = false;
-bool gPrintBoundingBox = false;
-int gBoundingBoxMargin = 0;
 
 void show_version(void) {
   printf("%s\n", gVersion);
