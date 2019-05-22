@@ -209,8 +209,8 @@ void show_help(void) {
   printf("  [-t clip-type]      Clipping operation.  One of (Intersection, Union, Difference, Xor).  Union default.\n");
   printf("  [-S subj-fill]      Subject fill type.  One of (EvenOdd, NonZero, Positive, Negative).  NonZero default.\n");
   printf("  [-C clip-fill]      Clip fill type.  One of (EvenOdd, NonZero, Positive, Negative).  NonZero default.\n");
-  printf("  [-s subj]           File containg subject polygon.\n");
-  printf("  [-c clip]           File containg clip polygon.\n");
+  printf("  [-s subj]           File containing subject polygon.\n");
+  printf("  [-c clip]           File containing clip polygon.\n");
   printf("  [-x mul]            Apply multiplication factor to input polygons.\n");
   printf("  [-R radius]         Polygon offset radius (negative for infill).\n");
   printf("  [-M miter_limit]    Miter limit (default %f).\n", gOffsetMiterLimit);

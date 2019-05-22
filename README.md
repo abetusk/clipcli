@@ -10,8 +10,8 @@ clipcli [-t clip-type] [-S subj-fill] [-C clip-fill] [-v] [-V] [-s subj] [-s sub
   [-t clip-type]      Clipping operation.  One of (Intersection, Union, Difference, Xor).  Union default.
   [-S subj-fill]      Subject fill type.  One of (EvenOdd, NonZero, Positive, Negative).  NonZero default.
   [-C clip-fill]      Clip fill type.  One of (EvenOdd, NonZero, Positive, Negative).  NonZero default.
-  [-s subj]           File containg subject polygon.
-  [-c clip]           File containg clip polygon.
+  [-s subj]           File containing subject polygon.
+  [-c clip]           File containing clip polygon.
   [-x mul]            Apply multiplication factor to input polygons.
   [-R radius]         Polygon offset radius.
   [-M miter_limit]    Miter limit (default 3.000000).
