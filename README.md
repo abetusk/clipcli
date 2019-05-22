@@ -47,6 +47,14 @@ $ cat testdata/colinearbox.gp ; echo ; ./clipcli -s testdata/colinearbox.gp
 
 ```
 
+# Credits
+
+* [Angus Johnson's ClipperLib](http://www.angusj.com/delphi/clipper.php)
+* [Bl4ckb0ne's delaunay-triangulation](https://github.com/Bl4ckb0ne/delaunay-triangulation)
+
 # License
 
-AGPLv3
+Unless otherwise specified, the license is AGPLv3.
+
+All libraries have been chosen to have a GPL compatible license.
+See individual files for license details.
