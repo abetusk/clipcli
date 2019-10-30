@@ -34,7 +34,7 @@
 #include "triangle.h"
 #include "delaunay.h"
 
-char gVersion[]="0.1.1";
+char gVersion[]="0.1.2";
 
 int g_verbose_level = 0;
 char *g_function=NULL;
