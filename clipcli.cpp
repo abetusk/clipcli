@@ -54,7 +54,7 @@ bool gPrintReverse = false;
 bool gPrintBoundingBox = false;
 int gBoundingBoxMargin = 0;
 
-
+bool gConvexHull = false;
 
 using namespace std;
 using namespace ClipperLib;
@@ -837,7 +837,9 @@ int main(int argc, char **argv) {
   vector<char *> subj_fn;
   vector<char *> clip_fn;
 
-  while ((ch = getopt(argc, argv, "f:s:c:t:S:C:x:vVR:M:E:O:FP:TrBb:")) != -1) {
+  Path hull_points, hull_path;
+
+  while ((ch = getopt(argc, argv, "f:s:c:t:S:C:x:vVR:M:E:O:FP:TrBb:H")) != -1) {
     switch (ch) {
       case 'f':
         g_function = strdup(optarg);
@@ -885,6 +887,10 @@ int main(int argc, char **argv) {
         gReadFloatFlag = 1;
         break;
 
+      case 'H':
+        gConvexHull = true;
+        break;
+
       case 'R':
         gOffsetRadius = atof(optarg);
         poly_offset_flag = true;
@@ -917,6 +923,23 @@ int main(int argc, char **argv) {
   }
 
   load_polys( subj_fn, subj_polys );
+
+  if (gConvexHull) {
+    for (i=0; i<subj_polys.size(); i++) {
+      for (j=0; j<subj_polys[i].size(); j++) {
+        hull_points.push_back( subj_polys[i][j] );
+      }
+    }
+
+    ConvexHull(hull_points, hull_path);
+
+    for (i=0; i<hull_path.size(); i++) {
+      printf("%lli %lli\n", hull_path[i].X, hull_path[i].Y);
+    }
+
+    exit(0);
+  }
+
   load_polys( clip_fn, clip_polys );
 
   if (g_function && (strncmp(g_function, "self-intersect", strlen("self-intersect"))==0)) {
@@ -928,7 +951,6 @@ int main(int argc, char **argv) {
     exit(0);
   }
 
-  //if (g_verbose_flag) {
   if (g_verbose_level>1) {
     printf("# clipop: %s, subjtype: %s, cliptype: %s\n", ct[(int)clip_op_type], pt[(int)subj_type], pt[(int)clip_type]);
     printf("# subject (%i)\n", (int)subj_polys.size());

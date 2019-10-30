@@ -99,6 +99,11 @@ struct IntPoint {
   {
     return a.X != b.X  || a.Y != b.Y; 
   }
+
+  friend inline bool operator <(const IntPoint& a, const IntPoint& b) {
+    return (a.X < b.X) || ((a.X == b.X) && (a.Y < b.Y));
+  }
+
 };
 //------------------------------------------------------------------------------
 
@@ -387,6 +392,8 @@ class clipperException : public std::exception
     std::string m_descr;
 };
 //------------------------------------------------------------------------------
+
+void ConvexHull( const Path& pnt, Path& solution );
 
 } //ClipperLib namespace
 
