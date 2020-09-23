@@ -34,7 +34,7 @@
 #include "triangle.h"
 #include "delaunay.h"
 
-char gVersion[]="0.1.2";
+char gVersion[]="0.1.4";
 
 int g_verbose_level = 0;
 char *g_function=NULL;
@@ -55,6 +55,10 @@ bool gPrintBoundingBox = false;
 int gBoundingBoxMargin = 0;
 
 bool gConvexHull = false;
+
+double gPostMulFactor = 1.0;
+bool gPostMul = false;
+
 
 using namespace std;
 using namespace ClipperLib;
@@ -124,9 +128,6 @@ void addEdgesFromTri( PointAdjacency &edge, Triangle *tri, EdgeMap &edgeMap ){
   uv.v[1].X = dtocint( tri->p2.x ); uv.v[1].Y = dtocint( tri->p2.y );
 
   if ( edgeMap.find( uv ) == edgeMap.end() ) {
-
-    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
-
     edge[ uv.v[0] ].push_back( uv.v[1] );
     edgeMap[ uv ] = 1;
   }
@@ -135,9 +136,6 @@ void addEdgesFromTri( PointAdjacency &edge, Triangle *tri, EdgeMap &edgeMap ){
   uv.v[1].X = dtocint( tri->p1.x ); uv.v[1].Y = dtocint( tri->p1.y );
 
   if ( edgeMap.find( uv ) == edgeMap.end() ) {
-
-    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
-
     edge[ uv.v[0] ].push_back( uv.v[1] );
     edgeMap[ uv ] = 1;
   }
@@ -148,9 +146,6 @@ void addEdgesFromTri( PointAdjacency &edge, Triangle *tri, EdgeMap &edgeMap ){
   uv.v[1].X = dtocint( tri->p3.x ); uv.v[1].Y = dtocint( tri->p3.y );
 
   if ( edgeMap.find( uv ) == edgeMap.end() ) {
-
-    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
-
     edge[ uv.v[0] ].push_back( uv.v[1] );
     edgeMap[ uv ] = 1;
   }
@@ -159,9 +154,6 @@ void addEdgesFromTri( PointAdjacency &edge, Triangle *tri, EdgeMap &edgeMap ){
   uv.v[1].X = dtocint( tri->p1.x ); uv.v[1].Y = dtocint( tri->p1.y );
 
   if ( edgeMap.find( uv ) == edgeMap.end() ) {
-
-    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
-
     edge[ uv.v[0] ].push_back( uv.v[1] );
     edgeMap[ uv ] = 1;
   }
@@ -172,9 +164,6 @@ void addEdgesFromTri( PointAdjacency &edge, Triangle *tri, EdgeMap &edgeMap ){
   uv.v[1].X = dtocint( tri->p3.x ); uv.v[1].Y = dtocint( tri->p3.y );
 
   if ( edgeMap.find( uv ) == edgeMap.end() ) {
-
-    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
-
     edge[ uv.v[0] ].push_back( uv.v[1] );
     edgeMap[ uv ] = 1;
   }
@@ -183,9 +172,6 @@ void addEdgesFromTri( PointAdjacency &edge, Triangle *tri, EdgeMap &edgeMap ){
   uv.v[1].X = dtocint( tri->p2.x ); uv.v[1].Y = dtocint( tri->p2.y );
 
   if ( edgeMap.find( uv ) == edgeMap.end() ) {
-
-    //printf("ADDING (%lli %lli) (%lli %lli)\n", uv.v[0].X, uv.v[0].Y, uv.v[1].X, uv.v[1].Y);
-
     edge[ uv.v[0] ].push_back( uv.v[1] );
     edgeMap[ uv ] = 1;
   }
@@ -212,10 +198,12 @@ void show_help(void) {
   printf("  [-s subj]           File containing subject polygon.\n");
   printf("  [-c clip]           File containing clip polygon.\n");
   printf("  [-x mul]            Apply multiplication factor to input polygons.\n");
+  printf("  [-X mul]            Apply multiplication factor to output polygons.\n");
   printf("  [-R radius]         Polygon offset radius (negative for infill).\n");
   printf("  [-M miter_limit]    Miter limit (default %f).\n", gOffsetMiterLimit);
   printf("  [-E epsilon]        Epsilon (default %f).\n", gEps);
   printf("  [-O orientation]    force orientation of all polygons (>0 cw, <0 ccw, 0 (default) input orientation).\n");
+  printf("  [-H]                generate convex hull\n");
   printf("  [-F]                read floating point input instead of long long integer\n");
   printf("  [-v]                Increase verbose level (can be specified multiple times).\n");
   printf("  [-P sortorder]      Polygon output order.  One of (area-inc|area-dec|cw-inc|cw-dec|pre|post|undef|infix|closest).\n");
@@ -379,38 +367,6 @@ void load_poly( FILE *fp, Paths &p ) {
     load_poly_set_orientation(cur_clip_path);
     p.push_back( cur_clip_path );
   }
-
-  /*
-  printf("##?? ... gForceOrientation %i\n", gForceOrientation);
-
-  if (cur_clip_path.size() > 0) {
-
-    printf("##?? gForceOrientation %i\n", gForceOrientation);
-
-    if (gForceOrientation!=0) {
-
-      if (gForceOrientation>0) {
-        if (!ClipperLib::Orientation(cur_clip_path)) {
-
-          printf("##>> gForceOrientation > 0 (%i), reversing...\n", gForceOrientation);
-
-          ClipperLib::ReversePath(cur_clip_path);
-        }
-      } else {
-        if (ClipperLib::Orientation(cur_clip_path)) {
-
-          printf("##<< gForceOrientation < 0 (%i), reversing...\n", gForceOrientation);
-
-          ClipperLib::ReversePath(cur_clip_path);
-        }
-      }
-
-    }
-
-    p.push_back(cur_clip_path);
-
-  }
-  */
 
 }
 
@@ -764,11 +720,22 @@ void walk_poly_tree(PolyNode *nod, int level) {
 
     if (gPrintReverse) {
       for (i=(nod->Contour.size()-1); i>=0; i--) {
-        printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
+
+        if (gPostMul) {
+          printf("%0.8f %0.8f\n", (double)(nod->Contour[i].X)*gPostMulFactor, (double)(nod->Contour[i].Y)*gPostMulFactor);
+        }
+        else {
+          printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
+        }
       }
     } else {
       for (i=0; i<(nod->Contour.size()); i++) {
-        printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
+        if (gPostMul) {
+          printf("%0.8f %0.8f\n", (double)(nod->Contour[i].X)*gPostMulFactor, (double)(nod->Contour[i].Y)*gPostMulFactor);
+        }
+        else {
+          printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
+        }
       }
     }
     printf("\n");
@@ -799,7 +766,12 @@ void walk_poly_tree(PolyNode *nod, int level) {
       printf("# %i (IsHole: %i, IsOpen: %i, lvl: %i)\n", (int)(nod->Contour.size()), (int)(nod->IsHole()), (int)(nod->IsOpen()), level );
     }
     for (i=0; i<(nod->Contour.size()); i++) {
-      printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
+      if (gPostMul) {
+        printf("%0.8f %0.8f\n", (double)(nod->Contour[i].X)*gPostMulFactor, (double)(nod->Contour[i].Y)*gPostMulFactor);
+      }
+      else {
+        printf("%lli %lli\n", nod->Contour[i].X, nod->Contour[i].Y);
+      }
     }
     printf("\n");
   }
@@ -810,9 +782,6 @@ void process_poly_tree(PolyTree &soln_tree) {
   int i;
 
   walk_poly_tree(&soln_tree, 0);
-
-  //for (i=0; i<soln_tree.Childs.size(); i++) { walk_poly_tree(soln_tree.Childs[i], 0); }
-
 }
 
 int main(int argc, char **argv) {
@@ -829,7 +798,6 @@ int main(int argc, char **argv) {
   PolyFillType subj_type=pftNonZero, clip_type=pftNonZero;
   ClipType clip_op_type = ctUnion;
 
-
   Paths subj_polys, clip_polys, soln;
   PolyTree soln_tree;
   Clipper clip;
@@ -839,7 +807,7 @@ int main(int argc, char **argv) {
 
   Path hull_points, hull_path;
 
-  while ((ch = getopt(argc, argv, "f:s:c:t:S:C:x:vVR:M:E:O:FP:TrBb:H")) != -1) {
+  while ((ch = getopt(argc, argv, "f:s:c:t:S:C:x:vVR:M:E:O:FP:TrBb:HX:")) != -1) {
     switch (ch) {
       case 'f':
         g_function = strdup(optarg);
@@ -899,6 +867,11 @@ int main(int argc, char **argv) {
         gMulFactor = atoll( optarg );
         if (gMulFactor < 0) gMulFactor = -1*gMulFactor;
         break;
+      case 'X':
+        gPostMulFactor = strtod(optarg, NULL);
+        gPostMul = true;
+        if (gPostMulFactor < 0.0) gPostMulFactor = -1*gPostMulFactor;
+        break;
       case 'O':
         gForceOrientation = atoi( optarg );
         break;
@@ -933,8 +906,15 @@ int main(int argc, char **argv) {
 
     ConvexHull(hull_points, hull_path);
 
-    for (i=0; i<hull_path.size(); i++) {
-      printf("%lli %lli\n", hull_path[i].X, hull_path[i].Y);
+    if (gPostMul) {
+      for (i=0; i<hull_path.size(); i++) {
+        printf("%0.8f %0.8f\n", (double)(hull_path[i].X)*gPostMulFactor, (double)(hull_path[i].Y)*gPostMulFactor);
+      }
+    }
+    else {
+      for (i=0; i<hull_path.size(); i++) {
+        printf("%lli %lli\n", hull_path[i].X, hull_path[i].Y);
+      }
     }
 
     exit(0);
@@ -1035,16 +1015,23 @@ int main(int argc, char **argv) {
 
       unsigned long long int marg = gBoundingBoxMargin * gMulFactor;
 
-      printf("%lli %lli\n", minX - marg, minY - marg);
-      printf("%lli %lli\n", minX - marg, maxY + marg);
-      printf("%lli %lli\n", maxX + marg, maxY + marg);
-      printf("%lli %lli\n", maxX + marg, minY - marg);
-      printf("\n");
+      if (gPostMul) {
+        printf("%0.8f %0.8f\n", (double)(minX - marg)*gPostMulFactor, (double)(minY - marg)*gPostMulFactor);
+        printf("%0.8f %0.8f\n", (double)(minX - marg)*gPostMulFactor, (double)(maxY + marg)*gPostMulFactor);
+        printf("%0.8f %0.8f\n", (double)(maxX + marg)*gPostMulFactor, (double)(maxY + marg)*gPostMulFactor);
+        printf("%0.8f %0.8f\n", (double)(maxX + marg)*gPostMulFactor, (double)(minY - marg)*gPostMulFactor);
+        printf("\n");
+      }
+
+      else {
+        printf("%lli %lli\n", minX - marg, minY - marg);
+        printf("%lli %lli\n", minX - marg, maxY + marg);
+        printf("%lli %lli\n", maxX + marg, maxY + marg);
+        printf("%lli %lli\n", maxX + marg, minY - marg);
+        printf("\n");
+      }
 
     }
-
-
-
 
     exit(0);
   }
@@ -1094,8 +1081,15 @@ int main(int argc, char **argv) {
 
     if (g_verbose_level>0) { printf("# %i (orig_idx: %i) (orientation: %i)\n", i, idx, (int) ClipperLib::Orientation(soln[idx]) ); }
 
-    for (j=0; j<soln[idx].size(); j++) {
-      printf("%lli %lli\n", soln[idx][j].X, soln[idx][j].Y);
+    if (gPostMul) {
+      for (j=0; j<soln[idx].size(); j++) {
+        printf("%0.8f %0.8f\n", (double)(soln[idx][j].X)*gPostMulFactor, (double)(soln[idx][j].Y)*gPostMulFactor);
+      }
+    }
+    else {
+      for (j=0; j<soln[idx].size(); j++) {
+        printf("%lli %lli\n", soln[idx][j].X, soln[idx][j].Y);
+      }
     }
     printf("\n");
   }
